@@ -1,0 +1,30 @@
+# Binaries and build output
+/supermarket-server
+/supermarket
+*.exe
+*.out
+*.test
+/bin/
+/dist/
+
+# Go dependency and tooling directories
+vendor/
+.cache/
+
+# SQLite databases and temporary files
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Local environment and configuration
+.env
+.env.*
+!.env.example
+*.local
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
