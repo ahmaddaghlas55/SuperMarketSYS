@@ -138,7 +138,7 @@ func (h *PurchasingHandler) PayPurchase(w http.ResponseWriter, r *http.Request) 
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	v, e := h.service.PayPurchase(r.Context(), id, req.Amount, req.Method)
+	v, e := h.service.PayPurchase(r.Context(), currentUserID(r), id, req.Amount, req.Method)
 	if e != nil {
 		serviceError(w, e)
 		return

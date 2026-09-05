@@ -1,11 +1,18 @@
 package handlers
 
 import (
+	"bytes"
 	"errors"
+	"image"
+	"image/draw"
+	"image/png"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/boombuler/barcode"
+	"github.com/boombuler/barcode/code128"
+	"github.com/jung-kurt/gofpdf"
 	"supermarket/internal/middleware"
 	"supermarket/internal/models"
 	"supermarket/internal/repository"
@@ -150,12 +157,64 @@ func (h *CatalogHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &v) {
 		return
 	}
+	generated := v.Barcode == nil || *v.Barcode == ""
 	v, e := h.service.CreateProductAs(r.Context(), currentUserID(r), v)
 	if e != nil {
 		serviceError(w, e)
 		return
 	}
-	writeJSON(w, 201, v)
+	writeJSON(w, 201, map[string]any{"product": v, "barcode_generated": generated})
+}
+
+func (h *CatalogHandler) BarcodeLabel(w http.ResponseWriter, r *http.Request) {
+	id, e := idParam(r)
+	if e != nil {
+		middleware.WriteError(w, 400, "invalid_id")
+		return
+	}
+	p, e := h.service.GetProduct(r.Context(), id)
+	if e != nil {
+		serviceError(w, e)
+		return
+	}
+	if p.Barcode == nil || *p.Barcode == "" {
+		middleware.WriteError(w, 400, "barcode_missing")
+		return
+	}
+	code, e := code128.Encode(*p.Barcode)
+	if e != nil {
+		serviceError(w, e)
+		return
+	}
+	img, e := barcode.Scale(code, 360, 100)
+	if e != nil {
+		serviceError(w, e)
+		return
+	}
+	var imageData bytes.Buffer
+	rgba := image.NewRGBA(img.Bounds())
+	draw.Draw(rgba, rgba.Bounds(), img, img.Bounds().Min, draw.Src)
+	if e = png.Encode(&imageData, rgba); e != nil {
+		serviceError(w, e)
+		return
+	}
+	pdf := gofpdf.New("P", "mm", "A6", "")
+	pdf.AddPage()
+	pdf.SetFont("Arial", "", 12)
+	pdf.CellFormat(95, 10, p.Name, "", 1, "C", false, 0, "")
+	pdf.RegisterImageOptionsReader("barcode", gofpdf.ImageOptions{ImageType: "PNG"}, &imageData)
+	pdf.ImageOptions("barcode", 10, 25, 128, 36, false, gofpdf.ImageOptions{ImageType: "PNG"}, 0, "")
+	pdf.SetXY(10, 64)
+	pdf.CellFormat(128, 8, *p.Barcode, "", 0, "C", false, 0, "")
+	var out bytes.Buffer
+	if e = pdf.Output(&out); e != nil {
+		serviceError(w, e)
+		return
+	}
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", `inline; filename="barcode-`+*p.Barcode+`.pdf"`)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(out.Bytes())
 }
 func (h *CatalogHandler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 	id, e := idParam(r)

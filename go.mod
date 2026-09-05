@@ -3,6 +3,8 @@ module supermarket
 go 1.22
 
 require (
+	github.com/boombuler/barcode v1.0.1
+	github.com/jung-kurt/gofpdf v1.16.2
 	github.com/xuri/excelize/v2 v2.8.1
 	golang.org/x/crypto v0.27.0
 	modernc.org/sqlite v1.33.1

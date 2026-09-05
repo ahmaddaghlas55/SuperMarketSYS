@@ -96,13 +96,21 @@ func (s *PurchasingService) CreatePurchase(ctx context.Context, userID int64, p 
 			return p, err
 		}
 	}
+	applied, err := s.repo.ApplyDealerCreditsTx(ctx, tx, p.DealerID, id, p.Total)
+	if err != nil {
+		return p, err
+	}
 	if err = tx.Commit(); err != nil {
 		return p, err
 	}
-	return s.repo.GetPurchase(ctx, id)
+	result, err := s.repo.GetPurchase(ctx, id)
+	if err == nil {
+		result.AppliedCredit = applied
+	}
+	return result, err
 }
 
-func (s *PurchasingService) PayPurchase(ctx context.Context, purchaseID int64, amount float64, method string) (models.Purchase, error) {
+func (s *PurchasingService) PayPurchase(ctx context.Context, userID, purchaseID int64, amount float64, method string) (models.Purchase, error) {
 	if amount <= 0 || method != "cash" && method != "card" && method != "transfer" {
 		return models.Purchase{}, fmt.Errorf("%w: invalid payment", ErrValidation)
 	}
@@ -121,8 +129,22 @@ func (s *PurchasingService) PayPurchase(ctx context.Context, purchaseID int64, a
 	if p.Paid > p.Total+0.000001 {
 		return p, fmt.Errorf("%w: payment exceeds remaining", ErrValidation)
 	}
-	if err = s.repo.InsertPaymentTx(ctx, tx, purchaseID, amount, method); err != nil {
+	var shiftID *int64
+	if method == "cash" {
+		var id int64
+		if err = tx.QueryRowContext(ctx, `SELECT id FROM cash_shifts WHERE closed_at IS NULL ORDER BY opened_at,id LIMIT 1`).Scan(&id); err != nil {
+			return p, fmt.Errorf("%w: open shift required", ErrValidation)
+		}
+		shiftID = &id
+	}
+	if err = s.repo.InsertPaymentTx(ctx, tx, purchaseID, amount, method, shiftID); err != nil {
 		return p, err
+	}
+	if method == "cash" {
+		ref := purchaseID
+		if _, err = tx.ExecContext(ctx, `INSERT INTO cash_movements(shift_id,type,direction,amount,reference_type,reference_id) VALUES (?,?,?,?,?,?)`, *shiftID, "dealer_payment", "out", amount, "purchase", ref); err != nil {
+			return p, err
+		}
 	}
 	if err = tx.Commit(); err != nil {
 		return p, err

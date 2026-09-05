@@ -1,0 +1,1 @@
+ALTER TABLE purchases ADD COLUMN credit_applied REAL NOT NULL DEFAULT 0;

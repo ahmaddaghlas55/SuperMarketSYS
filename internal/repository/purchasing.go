@@ -89,7 +89,7 @@ func (r *PurchasingRepository) ActivateDealer(ctx context.Context, id int64) err
 func scanPurchase(row *sql.Row) (models.Purchase, error) {
 	var p models.Purchase
 	var invoice, created sql.NullString
-	err := row.Scan(&p.ID, &p.DealerID, &p.UserID, &invoice, &p.Subtotal, &p.Discount, &p.Total, &p.Paid, &p.Remaining, &created)
+	err := row.Scan(&p.ID, &p.DealerID, &p.UserID, &invoice, &p.Subtotal, &p.Discount, &p.Total, &p.Paid, &p.CreditApplied, &p.Remaining, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return p, ErrNotFound
 	}
@@ -103,7 +103,7 @@ func scanPurchase(row *sql.Row) (models.Purchase, error) {
 	return p, nil
 }
 func (r *PurchasingRepository) GetPurchase(ctx context.Context, id int64) (models.Purchase, error) {
-	p, err := scanPurchase(r.db.QueryRowContext(ctx, `SELECT id,dealer_id,user_id,dealer_invoice_number,subtotal,discount,total,paid,remaining,created_at FROM purchases WHERE id=?`, id))
+	p, err := scanPurchase(r.db.QueryRowContext(ctx, `SELECT id,dealer_id,user_id,dealer_invoice_number,subtotal,discount,total,paid,credit_applied,remaining,created_at FROM purchases WHERE id=?`, id))
 	if err != nil {
 		return p, err
 	}
@@ -122,7 +122,7 @@ func (r *PurchasingRepository) GetPurchase(ctx context.Context, id int64) (model
 	return p, rows.Err()
 }
 func (r *PurchasingRepository) ListPurchases(ctx context.Context, dealerID int64) ([]models.Purchase, error) {
-	q := `SELECT id,dealer_id,user_id,dealer_invoice_number,subtotal,discount,total,paid,remaining,created_at FROM purchases`
+	q := `SELECT id,dealer_id,user_id,dealer_invoice_number,subtotal,discount,total,paid,credit_applied,remaining,created_at FROM purchases`
 	args := []any{}
 	if dealerID > 0 {
 		q += ` WHERE dealer_id=?`
@@ -150,7 +150,7 @@ type rowScanner interface{ Scan(...any) error }
 func scanPurchaseScanner(s rowScanner) (models.Purchase, error) {
 	var p models.Purchase
 	var invoice, created sql.NullString
-	err := s.Scan(&p.ID, &p.DealerID, &p.UserID, &invoice, &p.Subtotal, &p.Discount, &p.Total, &p.Paid, &p.Remaining, &created)
+	err := s.Scan(&p.ID, &p.DealerID, &p.UserID, &invoice, &p.Subtotal, &p.Discount, &p.Total, &p.Paid, &p.CreditApplied, &p.Remaining, &created)
 	if err != nil {
 		return p, err
 	}
@@ -162,11 +162,56 @@ func scanPurchaseScanner(s rowScanner) (models.Purchase, error) {
 }
 
 func (r *PurchasingRepository) InsertPurchaseTx(ctx context.Context, tx *sql.Tx, p models.Purchase) (int64, error) {
-	res, err := tx.ExecContext(ctx, `INSERT INTO purchases(dealer_id,user_id,dealer_invoice_number,subtotal,discount,total,paid,remaining) VALUES (?,?,?,?,?,?,?,?)`, p.DealerID, p.UserID, p.DealerInvoiceNumber, p.Subtotal, p.Discount, p.Total, 0, p.Total)
+	res, err := tx.ExecContext(ctx, `INSERT INTO purchases(dealer_id,user_id,dealer_invoice_number,subtotal,discount,total,paid,credit_applied,remaining) VALUES (?,?,?,?,?,?,?,?,?)`, p.DealerID, p.UserID, p.DealerInvoiceNumber, p.Subtotal, p.Discount, p.Total, 0, 0, p.Total)
 	if err != nil {
 		return 0, err
 	}
 	return res.LastInsertId()
+}
+func (r *PurchasingRepository) ApplyDealerCreditsTx(ctx context.Context, tx *sql.Tx, dealerID, purchaseID int64, amount float64) (float64, error) {
+	if amount <= 0 {
+		return 0, nil
+	}
+	var purchaseRemaining float64
+	if err := tx.QueryRowContext(ctx, `SELECT remaining FROM purchases WHERE id=?`, purchaseID).Scan(&purchaseRemaining); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, ErrNotFound
+		}
+		return 0, err
+	}
+	if amount > purchaseRemaining {
+		amount = purchaseRemaining
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT id, amount-applied_amount FROM dealer_credits WHERE dealer_id=? AND amount>applied_amount ORDER BY created_at,id`, dealerID)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	remaining := amount
+	var applied float64
+	for rows.Next() && remaining > 0 {
+		var id int64
+		var available float64
+		if err := rows.Scan(&id, &available); err != nil {
+			return applied, err
+		}
+		use := available
+		if use > remaining {
+			use = remaining
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE dealer_credits SET applied_amount=applied_amount+? WHERE id=?`, use, id); err != nil {
+			return applied, err
+		}
+		remaining -= use
+		applied += use
+	}
+	if err := rows.Err(); err != nil {
+		return applied, err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE purchases SET credit_applied=credit_applied+?,remaining=MAX(0,total-paid-credit_applied-?) WHERE id=?`, applied, applied, purchaseID); err != nil {
+		return applied, err
+	}
+	return applied, nil
 }
 func (r *PurchasingRepository) InsertPurchaseItemTx(ctx context.Context, tx *sql.Tx, purchaseID int64, i models.PurchaseItem) error {
 	_, err := tx.ExecContext(ctx, `INSERT INTO purchase_items(purchase_id,product_id,quantity,unit_cost,line_total) VALUES (?,?,?,?,?)`, purchaseID, i.ProductID, i.Quantity, i.UnitCost, i.LineTotal)
@@ -206,7 +251,7 @@ func (r *PurchasingRepository) Begin(ctx context.Context) (*sql.Tx, error) {
 func (r *PurchasingRepository) UpdatePurchasePaymentTx(ctx context.Context, tx *sql.Tx, purchaseID int64, amount float64) (models.Purchase, error) {
 	var p models.Purchase
 	var invoice, created sql.NullString
-	if err := tx.QueryRowContext(ctx, `SELECT id,dealer_id,user_id,dealer_invoice_number,subtotal,discount,total,paid,remaining,created_at FROM purchases WHERE id=?`, purchaseID).Scan(&p.ID, &p.DealerID, &p.UserID, &invoice, &p.Subtotal, &p.Discount, &p.Total, &p.Paid, &p.Remaining, &created); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT id,dealer_id,user_id,dealer_invoice_number,subtotal,discount,total,paid,credit_applied,remaining,created_at FROM purchases WHERE id=?`, purchaseID).Scan(&p.ID, &p.DealerID, &p.UserID, &invoice, &p.Subtotal, &p.Discount, &p.Total, &p.Paid, &p.CreditApplied, &p.Remaining, &created); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return p, ErrNotFound
 		}
@@ -214,8 +259,11 @@ func (r *PurchasingRepository) UpdatePurchasePaymentTx(ctx context.Context, tx *
 	}
 	p.DealerInvoiceNumber = invoice.String
 	p.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
+	if amount > p.Remaining+0.000001 {
+		return p, fmt.Errorf("payment exceeds remaining")
+	}
 	p.Paid += amount
-	p.Remaining = p.Total - p.Paid
+	p.Remaining = p.Total - p.Paid - p.CreditApplied
 	if p.Remaining < 0 {
 		p.Remaining = 0
 	}
@@ -234,8 +282,8 @@ func (r *PurchasingRepository) PurchaseBalanceTx(ctx context.Context, tx *sql.Tx
 	}
 	return dealerID, remaining, err
 }
-func (r *PurchasingRepository) InsertPaymentTx(ctx context.Context, tx *sql.Tx, purchaseID int64, amount float64, method string) error {
-	_, err := tx.ExecContext(ctx, `INSERT INTO dealer_payments(purchase_id,amount,method) VALUES (?,?,?)`, purchaseID, amount, method)
+func (r *PurchasingRepository) InsertPaymentTx(ctx context.Context, tx *sql.Tx, purchaseID int64, amount float64, method string, shiftID *int64) error {
+	_, err := tx.ExecContext(ctx, `INSERT INTO dealer_payments(purchase_id,amount,method,shift_id) VALUES (?,?,?,?)`, purchaseID, amount, method, shiftID)
 	return err
 }
 func (r *PurchasingRepository) InsertReturnTx(ctx context.Context, tx *sql.Tx, ret models.PurchaseReturn) (int64, error) {
@@ -260,7 +308,7 @@ func (r *PurchasingRepository) PurchaseItemQuantityTx(ctx context.Context, tx *s
 	return q, c, err
 }
 func (r *PurchasingRepository) OffsetPurchaseTx(ctx context.Context, tx *sql.Tx, purchaseID int64, value float64) error {
-	_, err := tx.ExecContext(ctx, `UPDATE purchases SET remaining=MAX(0,remaining-?) WHERE id=?`, value, purchaseID)
+	_, err := tx.ExecContext(ctx, `UPDATE purchases SET credit_applied=credit_applied+?,remaining=MAX(0,total-paid-credit_applied-?) WHERE id=?`, value, value, purchaseID)
 	return err
 }
 

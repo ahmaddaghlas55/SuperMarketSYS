@@ -57,7 +57,9 @@ type Purchase struct {
 	Discount            float64        `json:"discount"`
 	Total               float64        `json:"total"`
 	Paid                float64        `json:"paid"`
+	CreditApplied       float64        `json:"credit_applied"`
 	Remaining           float64        `json:"remaining"`
+	AppliedCredit       float64        `json:"applied_credit"`
 	CreatedAt           time.Time      `json:"created_at"`
 	Items               []PurchaseItem `json:"items,omitempty"`
 }
