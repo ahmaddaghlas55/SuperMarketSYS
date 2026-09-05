@@ -44,6 +44,12 @@ func main() {
 		repository.NewSessionRepository(db),
 	)
 	authHandler := handlers.NewAuthHandler(authService)
+	catalogRepo := repository.NewCatalogRepository(db)
+	purchasingRepo := repository.NewPurchasingRepository(db)
+	catalogService := services.NewCatalogService(catalogRepo, purchasingRepo)
+	purchasingService := services.NewPurchasingService(purchasingRepo, catalogRepo)
+	catalogHandler := handlers.NewCatalogHandler(catalogService)
+	purchasingHandler := handlers.NewPurchasingHandler(purchasingService)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthHandler)
@@ -61,14 +67,46 @@ func main() {
 	}))
 	mux.Handle("GET /api/auth/me", protected)
 	mux.Handle("POST /api/auth/logout", protected)
+	// Catalog and purchasing endpoints use the authenticated request user. Product
+	// and category changes are admin-only; receipts are available to staff.
+	adminCatalog := func(h http.Handler) http.Handler {
+		return middleware.RequireAuth(authService, middleware.RequireRole("admin")(h))
+	}
+	staffOrAdmin := func(h http.Handler) http.Handler {
+		return middleware.RequireAuth(authService, middleware.RequireRole("admin", "staff")(h))
+	}
+	mux.Handle("GET /api/categories", staffOrAdmin(http.HandlerFunc(catalogHandler.ListCategories)))
+	mux.Handle("POST /api/categories", adminCatalog(http.HandlerFunc(catalogHandler.CreateCategory)))
+	mux.Handle("PUT /api/categories/{id}", adminCatalog(http.HandlerFunc(catalogHandler.UpdateCategory)))
+	mux.Handle("DELETE /api/categories/{id}", adminCatalog(http.HandlerFunc(catalogHandler.DeleteCategory)))
+	mux.Handle("POST /api/categories/{id}/activate", adminCatalog(http.HandlerFunc(catalogHandler.ActivateCategory)))
+	mux.Handle("GET /api/products", staffOrAdmin(http.HandlerFunc(catalogHandler.ListProducts)))
+	mux.Handle("GET /api/products/{id}", staffOrAdmin(http.HandlerFunc(catalogHandler.GetProduct)))
+	mux.Handle("GET /api/products/{id}/price", staffOrAdmin(http.HandlerFunc(catalogHandler.CalculatePrice)))
+	mux.Handle("POST /api/products", adminCatalog(http.HandlerFunc(catalogHandler.CreateProduct)))
+	mux.Handle("PUT /api/products/{id}", adminCatalog(http.HandlerFunc(catalogHandler.UpdateProduct)))
+	mux.Handle("DELETE /api/products/{id}", adminCatalog(http.HandlerFunc(catalogHandler.DeleteProduct)))
+	mux.Handle("POST /api/products/{id}/activate", adminCatalog(http.HandlerFunc(catalogHandler.ActivateProduct)))
+	mux.Handle("POST /api/products/import", adminCatalog(http.HandlerFunc(catalogHandler.ImportProducts)))
+	mux.Handle("GET /api/dealers", staffOrAdmin(http.HandlerFunc(purchasingHandler.ListDealers)))
+	mux.Handle("POST /api/dealers", adminCatalog(http.HandlerFunc(purchasingHandler.CreateDealer)))
+	mux.Handle("PUT /api/dealers/{id}", adminCatalog(http.HandlerFunc(purchasingHandler.UpdateDealer)))
+	mux.Handle("DELETE /api/dealers/{id}", adminCatalog(http.HandlerFunc(purchasingHandler.DeleteDealer)))
+	mux.Handle("POST /api/dealers/{id}/activate", adminCatalog(http.HandlerFunc(purchasingHandler.ActivateDealer)))
+	mux.Handle("GET /api/purchases", staffOrAdmin(http.HandlerFunc(purchasingHandler.ListPurchases)))
+	mux.Handle("GET /api/purchases/{id}", staffOrAdmin(http.HandlerFunc(purchasingHandler.GetPurchase)))
+	mux.Handle("POST /api/purchases", staffOrAdmin(http.HandlerFunc(purchasingHandler.CreatePurchase)))
+	mux.Handle("POST /api/purchases/{id}/payments", adminCatalog(http.HandlerFunc(purchasingHandler.PayPurchase)))
+	mux.Handle("POST /api/purchase-returns", adminCatalog(http.HandlerFunc(purchasingHandler.ReturnPurchase)))
+	mux.Handle("GET /api/purchase-returns", adminCatalog(http.HandlerFunc(purchasingHandler.ListReturns)))
 	adminOnly := middleware.RequireAuth(authService, middleware.RequireRole("admin")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "role": "admin"})
 	})))
 	mux.Handle("/api/admin/ping", adminOnly)
-	staffOrAdmin := middleware.RequireAuth(authService, middleware.RequireRole("admin", "staff")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	staffOrAdminPing := middleware.RequireAuth(authService, middleware.RequireRole("admin", "staff")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	})))
-	mux.Handle("/api/staff/ping", staffOrAdmin)
+	mux.Handle("/api/staff/ping", staffOrAdminPing)
 
 	server := &http.Server{Addr: address, Handler: loggingMiddleware(mux), ReadHeaderTimeout: 5 * time.Second}
 	stop := make(chan os.Signal, 1)
