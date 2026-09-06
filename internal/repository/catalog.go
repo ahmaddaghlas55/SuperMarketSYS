@@ -94,14 +94,16 @@ func (r *CatalogRepository) getProduct(ctx context.Context, q interface {
 	var sale, purchase, ppkg, cppkg, ppiece, pcarton sql.NullFloat64
 	var pieces sql.NullInt64
 	var active int
-	err := q.QueryRowContext(ctx, `SELECT p.id,p.barcode,p.name,p.category_id,p.unit_type,p.sale_price,p.purchase_price,p.price_per_kg,p.purchase_price_per_kg,p.price_per_piece,p.price_per_carton,p.pieces_per_carton,p.quantity,p.active,p.created_at FROM products p WHERE p.id=? AND p.active=1`, id).
-		Scan(&p.ID, &barcode, &p.Name, &category, &p.UnitType, &sale, &purchase, &ppkg, &cppkg, &ppiece, &pcarton, &pieces, &p.Quantity, &active, &created)
+	var threshold int64
+	err := q.QueryRowContext(ctx, `SELECT p.id,p.barcode,p.name,p.category_id,p.unit_type,p.sale_price,p.purchase_price,p.price_per_kg,p.purchase_price_per_kg,p.price_per_piece,p.price_per_carton,p.pieces_per_carton,p.quantity,p.active,p.created_at,COALESCE(c.low_stock_threshold,0) FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE p.id=? AND p.active=1`, id).
+		Scan(&p.ID, &barcode, &p.Name, &category, &p.UnitType, &sale, &purchase, &ppkg, &cppkg, &ppiece, &pcarton, &pieces, &p.Quantity, &active, &created, &threshold)
 	if errors.Is(err, sql.ErrNoRows) {
 		return p, ErrNotFound
 	}
 	if err != nil {
 		return p, err
 	}
+	p.LowStock = productLowStock(p.Quantity, threshold)
 	if barcode.Valid {
 		p.Barcode = &barcode.String
 	}
@@ -184,11 +186,16 @@ func (r *CatalogRepository) ListProducts(ctx context.Context, lowStock bool) ([]
 			p.PiecesPerCarton = &pieces.Int64
 		}
 		p.Active = active == 1
-		p.LowStock = p.Quantity <= float64(threshold)
+		p.LowStock = productLowStock(p.Quantity, threshold)
 		p.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
 		out = append(out, p)
 	}
+
 	return out, rows.Err()
+}
+
+func productLowStock(quantity float64, threshold int64) bool {
+	return quantity <= float64(threshold) || quantity == 0
 }
 
 func boolToInt(v bool) int {

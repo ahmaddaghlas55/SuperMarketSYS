@@ -331,7 +331,7 @@ func (s *OperationsService) ReturnSale(ctx context.Context, userID, saleID int64
 
 func (s *OperationsService) CreateSalesReturn(ctx context.Context, userID int64, in ReturnInput) (models.SalesReturn, error) {
 	if in.SaleID <= 0 || len(in.Items) == 0 || (in.RefundType != "debt_removed" && in.RefundType != "cash_refund" && in.RefundType != "exchange") {
-		return models.SalesReturn{}, fmt.Errorf("%w: invalid return", ErrValidation)
+		return models.SalesReturn{}, ErrInvalidReturnState
 	}
 	tx, err := s.repo.Begin(ctx)
 	if err != nil {
@@ -357,8 +357,14 @@ func (s *OperationsService) CreateSalesReturn(ctx context.Context, userID int64,
 		if e != nil {
 			return models.SalesReturn{}, e
 		}
-		if in.Items[i].Quantity <= 0 || in.Items[i].Quantity > q-returned+0.000001 {
-			return models.SalesReturn{}, fmt.Errorf("%w: return quantity", ErrValidation)
+		if in.Items[i].Quantity <= 0 {
+			return models.SalesReturn{}, fmt.Errorf("%w: quantity must be positive", ErrInvalidReturnState)
+		}
+		if q-returned <= 0.000001 {
+			return models.SalesReturn{}, ErrAlreadyReturned
+		}
+		if in.Items[i].Quantity > q-returned+0.000001 {
+			return models.SalesReturn{}, ErrReturnQuantityExceeded
 		}
 		in.Items[i].UnitPrice = price
 		in.Items[i].LineTotal = money(price * in.Items[i].Quantity)
@@ -366,13 +372,13 @@ func (s *OperationsService) CreateSalesReturn(ctx context.Context, userID int64,
 	}
 	total = money(total)
 	if in.RefundType == "debt_removed" && saleRemaining+0.000001 < total {
-		return models.SalesReturn{}, fmt.Errorf("%w: return exceeds debt", ErrValidation)
+		return models.SalesReturn{}, fmt.Errorf("%w: return exceeds debt", ErrInvalidReturnState)
 	}
 	if in.RefundType == "cash_refund" && saleRemaining > 0.000001 {
-		return models.SalesReturn{}, fmt.Errorf("%w: sale is not fully paid", ErrValidation)
+		return models.SalesReturn{}, fmt.Errorf("%w: sale is not fully paid", ErrInvalidReturnState)
 	}
 	if (in.RefundType == "cash_refund" || in.RefundType == "exchange") && (salePaymentMethod != "cash" || saleRemaining > 0.000001) {
-		return models.SalesReturn{}, fmt.Errorf("%w: cash returns require a fully paid cash sale", ErrValidation)
+		return models.SalesReturn{}, fmt.Errorf("%w: cash returns require a fully paid cash sale", ErrInvalidReturnState)
 	}
 	var shiftID int64
 	if in.RefundType == "cash_refund" {
@@ -386,7 +392,7 @@ func (s *OperationsService) CreateSalesReturn(ctx context.Context, userID int64,
 	var netDifference float64
 	if in.RefundType == "exchange" {
 		if len(in.ExchangeItems) == 0 {
-			return v, fmt.Errorf("%w: exchange items required", ErrValidation)
+			return v, fmt.Errorf("%w: exchange items required", ErrInvalidReturnState)
 		}
 		ex, exchangeTotal, ee := s.createExchangeSaleTx(ctx, tx, userID, in.CustomerID, in.ExchangeItems)
 		if ee != nil {

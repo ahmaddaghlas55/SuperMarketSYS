@@ -27,6 +27,17 @@ func NewCatalogHandler(s *services.CatalogService) *CatalogHandler {
 
 func idParam(r *http.Request) (int64, error) { return strconv.ParseInt(r.PathValue("id"), 10, 64) }
 func serviceError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, services.ErrAlreadyReturned):
+		middleware.WriteError(w, http.StatusBadRequest, "already_returned")
+		return
+	case errors.Is(err, services.ErrReturnQuantityExceeded):
+		middleware.WriteError(w, http.StatusBadRequest, "return_quantity_exceeds_sold")
+		return
+	case errors.Is(err, services.ErrInvalidReturnState):
+		middleware.WriteError(w, http.StatusBadRequest, "invalid_return_state")
+		return
+	}
 	if errors.Is(err, repository.ErrNotFound) {
 		middleware.WriteError(w, http.StatusNotFound, "not_found")
 		return
@@ -263,10 +274,10 @@ func (h *CatalogHandler) ImportProducts(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	defer file.Close()
-	n, err := h.service.ImportProductsAs(r.Context(), file, currentUserID(r))
+	result, err := h.service.ImportProductsAs(r.Context(), file, currentUserID(r))
 	if err != nil {
 		serviceError(w, err)
 		return
 	}
-	writeJSON(w, 201, map[string]any{"imported": n})
+	writeJSON(w, 201, result)
 }

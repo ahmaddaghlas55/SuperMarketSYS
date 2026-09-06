@@ -43,13 +43,15 @@ login. Examples use `http://localhost:8080`.
 | `DELETE /api/products/{id}` | admin | — | `{"ok":true}` (soft delete) | `curl -X DELETE -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/products/1` |
 | `POST /api/products/{id}/activate` | admin | — | `{"ok":true,"active":true}` | `curl -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/products/1/activate` |
 | `GET /api/products/{id}/barcode-label` | staff | — | PDF barcode label | `curl -H "Authorization: Bearer $TOKEN" -o label.pdf http://localhost:8080/api/products/1/barcode-label` |
-| `POST /api/products/import` | admin | multipart field `file` (Excel) | `{"imported":n}` | `curl -X POST -H "Authorization: Bearer $TOKEN" -F file=@products.xlsx http://localhost:8080/api/products/import` |
+| `POST /api/products/import` | admin | multipart field `file` (Excel) | `{"imported":1,"failed":[{"row":2,"error":"..."}]}` | `curl -X POST -H "Authorization: Bearer $TOKEN" -F file=@products.xlsx http://localhost:8080/api/products/import` |
 
 ## Promotions
 
 Promotion types are `percent_off`, `fixed_price`, and `bundle`. A promotion is
 selected newest-first; promotions never stack. A sale line's explicit
-`price_override`/`line_total` always wins.
+`price_override` is a number representing the overridden per-unit price and
+always wins. `line_total` is server-computed and is not an independent request
+override.
 
 | Method/path | Auth | Body | Response | curl |
 |---|---|---|---|---|
@@ -63,8 +65,9 @@ selected newest-first; promotions never stack. A sale line's explicit
 
 ## Sales, customers, debt, and returns
 
-Sale item fields are `product_id`, `quantity`, and optional `price_override`
-or `line_total`. The server recalculates all totals, cost, promotions, stock,
+Sale item request fields are `product_id`, `quantity`, and optional numeric
+`price_override` (the overridden per-unit price). `line_total` is returned by
+the server and must not be sent as a request override. The server recalculates all totals, cost, promotions, stock,
 change, and debt. `request_id` makes sale submission idempotent.
 
 | Method/path | Auth | Body | Response | curl |
@@ -85,6 +88,10 @@ change, and debt. `request_id` makes sale submission idempotent.
 | `POST /api/sales-returns` | admin | same return body as sale return, including `sale_id` | `201 sales return` | `curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"sale_id":1,"refund_type":"debt_removed","items":[{"product_id":1,"quantity":1}]}' http://localhost:8080/api/sales-returns` |
 
 ## Dealers, purchases, and purchase returns
+
+`GET /api/dealers/{id}` returns one dealer, including `outstanding`, `credit`,
+and `balance`. Example:
+`curl -H "Authorization: ******" http://localhost:8080/api/dealers/1`
 
 | Method/path | Auth | Body | Response | curl |
 |---|---|---|---|---|

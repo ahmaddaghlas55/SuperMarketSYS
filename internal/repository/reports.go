@@ -203,7 +203,7 @@ func (r *ReportsRepository) Stock(ctx context.Context) (models.StockReport, erro
 		if pieces.Valid {
 			p.PiecesPerCarton = &pieces.Int64
 		}
-		p.Active, p.LowStock = active == 1, p.Quantity <= float64(threshold)
+		p.Active, p.LowStock = active == 1, productLowStock(p.Quantity, int64(threshold))
 		p.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
 		cost := purchaseCost(p)
 		out.ProductCount++

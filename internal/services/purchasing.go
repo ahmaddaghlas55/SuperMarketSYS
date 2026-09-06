@@ -27,6 +27,9 @@ func NewPurchasingService(repo *repository.PurchasingRepository, catalog *reposi
 func (s *PurchasingService) ListDealers(ctx context.Context) ([]models.Dealer, error) {
 	return s.repo.ListDealers(ctx)
 }
+func (s *PurchasingService) GetDealer(ctx context.Context, id int64) (models.Dealer, error) {
+	return s.repo.GetDealer(ctx, id)
+}
 func (s *PurchasingService) CreateDealer(ctx context.Context, d models.Dealer) (models.Dealer, error) {
 	if strings.TrimSpace(d.Name) == "" {
 		return d, fmt.Errorf("%w: dealer name", ErrValidation)

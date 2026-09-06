@@ -19,6 +19,7 @@ func (r *PurchasingRepository) ListDealers(ctx context.Context) ([]models.Dealer
 	if err != nil {
 		return nil, err
 	}
+
 	defer rows.Close()
 	var out []models.Dealer
 	for rows.Next() {
@@ -35,6 +36,25 @@ func (r *PurchasingRepository) ListDealers(ctx context.Context) ([]models.Dealer
 		out = append(out, d)
 	}
 	return out, rows.Err()
+}
+
+func (r *PurchasingRepository) GetDealer(ctx context.Context, id int64) (models.Dealer, error) {
+	var d models.Dealer
+	var active int
+	err := r.db.QueryRowContext(ctx, `SELECT d.id,d.name,COALESCE(d.phone,''),COALESCE(d.address,''),COALESCE(d.notes,''),d.active,COALESCE((SELECT SUM(p.remaining) FROM purchases p WHERE p.dealer_id=d.id),0),COALESCE((SELECT SUM(c.amount-c.applied_amount) FROM dealer_credits c WHERE c.dealer_id=d.id),0) FROM dealers d WHERE d.id=?`, id).
+		Scan(&d.ID, &d.Name, &d.Phone, &d.Address, &d.Notes, &active, &d.Outstanding, &d.Credit)
+	if errors.Is(err, sql.ErrNoRows) {
+		return d, ErrNotFound
+	}
+	if err != nil {
+		return d, err
+	}
+	d.Active = active == 1
+	d.Balance = d.Outstanding - d.Credit
+	if d.Balance < 0 {
+		d.Balance = 0
+	}
+	return d, nil
 }
 func (r *PurchasingRepository) CreateDealer(ctx context.Context, d models.Dealer) (models.Dealer, error) {
 	res, err := r.db.ExecContext(ctx, `INSERT INTO dealers(name,phone,address,notes) VALUES (?,?,?,?)`, d.Name, d.Phone, d.Address, d.Notes)

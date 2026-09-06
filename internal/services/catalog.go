@@ -145,23 +145,24 @@ func (s *CatalogService) ActivateProduct(ctx context.Context, id int64) error {
 	return s.repo.ActivateProduct(ctx, id)
 }
 
-func (s *CatalogService) ImportProducts(ctx context.Context, reader io.Reader) (int, error) {
+func (s *CatalogService) ImportProducts(ctx context.Context, reader io.Reader) (models.ImportResult, error) {
 	return s.ImportProductsAs(ctx, reader, 0)
 }
 
-func (s *CatalogService) ImportProductsAs(ctx context.Context, reader io.Reader, userID int64) (int, error) {
+func (s *CatalogService) ImportProductsAs(ctx context.Context, reader io.Reader, userID int64) (models.ImportResult, error) {
+	var result models.ImportResult
 	f, err := excelize.OpenReader(reader)
 	if err != nil {
-		return 0, fmt.Errorf("open workbook: %w", err)
+		return result, fmt.Errorf("open workbook: %w", err)
 	}
 	defer f.Close()
 	sheet := f.GetSheetName(0)
 	rows, err := f.GetRows(sheet)
 	if err != nil {
-		return 0, err
+		return result, err
 	}
 	if len(rows) < 2 {
-		return 0, fmt.Errorf("%w: spreadsheet is empty", ErrValidation)
+		return result, fmt.Errorf("%w: spreadsheet is empty", ErrValidation)
 	}
 	headers := map[string]int{}
 	for i, h := range rows[0] {
@@ -170,16 +171,19 @@ func (s *CatalogService) ImportProductsAs(ctx context.Context, reader io.Reader,
 	required := []string{"name", "unit_type"}
 	for _, h := range required {
 		if _, ok := headers[h]; !ok {
-			return 0, fmt.Errorf("%w: missing %s", ErrValidation, h)
+			return result, fmt.Errorf("%w: missing %s", ErrValidation, h)
 		}
 	}
 	tx, err := s.dbRepo.Begin(ctx)
 	if err != nil {
-		return 0, err
+		return result, err
 	}
 	defer tx.Rollback()
-	count := 0
 	for n, row := range rows[1:] {
+		rowNumber := n + 2
+		fail := func(err error) {
+			result.Failed = append(result.Failed, models.ImportFailure{Row: rowNumber, Error: err.Error()})
+		}
 		val := func(key string) string {
 			if i, ok := headers[key]; ok && i < len(row) {
 				return strings.TrimSpace(row[i])
@@ -187,13 +191,18 @@ func (s *CatalogService) ImportProductsAs(ctx context.Context, reader io.Reader,
 			return ""
 		}
 		p := models.Product{Name: val("name"), UnitType: strings.ToLower(val("unit_type"))}
+		if val("quantity") != "" && userID == 0 {
+			fail(fmt.Errorf("initial quantity requires an authenticated user"))
+			continue
+		}
 		if v := val("barcode"); v != "" {
 			p.Barcode = &v
 		}
 		if v := val("category_id"); v != "" {
 			id, e := strconv.ParseInt(v, 10, 64)
 			if e != nil {
-				return count, fmt.Errorf("row %d: category_id: %w", n+2, e)
+				fail(fmt.Errorf("category_id must be an integer"))
+				continue
 			}
 			p.CategoryID = &id
 		} else if categoryName := val("category"); categoryName != "" {
@@ -202,92 +211,102 @@ func (s *CatalogService) ImportProductsAs(ctx context.Context, reader io.Reader,
 			if err != nil {
 				res, createErr := tx.ExecContext(ctx, `INSERT INTO categories(name,low_stock_threshold) VALUES (?,5)`, categoryName)
 				if createErr != nil {
-					return count, fmt.Errorf("row %d: category: %w", n+2, createErr)
+					fail(fmt.Errorf("category: %w", createErr))
+					continue
 				}
 				id, err = res.LastInsertId()
 			}
 			if err != nil {
-				return count, fmt.Errorf("row %d: category: %w", n+2, err)
+				fail(fmt.Errorf("category: %w", err))
+				continue
 			}
 			p.CategoryID = &id
 		}
 		if v := val("sale_price"); v != "" {
 			x, e := strconv.ParseFloat(v, 64)
 			if e != nil {
-				return count, fmt.Errorf("row %d: sale_price", n+2)
+				fail(fmt.Errorf("sale_price must be a number"))
+				continue
 			}
 			p.SalePrice = &x
 		}
 		if v := val("purchase_price"); v != "" {
 			x, e := strconv.ParseFloat(v, 64)
 			if e != nil {
-				return count, fmt.Errorf("row %d: purchase_price", n+2)
+				fail(fmt.Errorf("purchase_price must be a number"))
+				continue
 			}
 			p.PurchasePrice = &x
 		}
 		if v := val("purchase_price_per_kg"); v != "" {
 			x, e := strconv.ParseFloat(v, 64)
 			if e != nil {
-				return count, fmt.Errorf("row %d: purchase_price_per_kg", n+2)
+				fail(fmt.Errorf("purchase_price_per_kg must be a number"))
+				continue
 			}
 			p.PurchasePricePerKg = &x
 		}
 		if v := val("price_per_kg"); v != "" {
 			x, e := strconv.ParseFloat(v, 64)
 			if e != nil {
-				return count, fmt.Errorf("row %d: price_per_kg", n+2)
+				fail(fmt.Errorf("price_per_kg must be a number"))
+				continue
 			}
 			p.PricePerKg = &x
 		}
 		if v := val("price_per_piece"); v != "" {
 			x, e := strconv.ParseFloat(v, 64)
 			if e != nil {
-				return count, fmt.Errorf("row %d: price_per_piece", n+2)
+				fail(fmt.Errorf("price_per_piece must be a number"))
+				continue
 			}
 			p.PricePerPiece = &x
 		}
 		if v := val("price_per_carton"); v != "" {
 			x, e := strconv.ParseFloat(v, 64)
 			if e != nil {
-				return count, fmt.Errorf("row %d: price_per_carton", n+2)
+				fail(fmt.Errorf("price_per_carton must be a number"))
+				continue
 			}
 			p.PricePerCarton = &x
 		}
 		if v := val("pieces_per_carton"); v != "" {
 			x, e := strconv.ParseInt(v, 10, 64)
 			if e != nil {
-				return count, fmt.Errorf("row %d: pieces_per_carton", n+2)
+				fail(fmt.Errorf("pieces_per_carton must be an integer"))
+				continue
 			}
 			p.PiecesPerCarton = &x
 		}
 		if v := val("quantity"); v != "" {
 			x, e := strconv.ParseFloat(v, 64)
 			if e != nil {
-				return count, fmt.Errorf("row %d: quantity", n+2)
+				fail(fmt.Errorf("quantity must be a number"))
+				continue
 			}
 			p.Quantity = x
 		}
 		if err := ValidateProduct(p); err != nil {
-			return count, fmt.Errorf("row %d: %w", n+2, err)
+			fail(errors.New(strings.TrimPrefix(err.Error(), ErrValidation.Error()+": ")))
+			continue
 		}
 		productID, err := s.repo.InsertProductTx(ctx, tx, p)
 		if err != nil {
-			return count, fmt.Errorf("row %d: %w", n+2, err)
+			fail(err)
+			continue
 		}
 		if p.Quantity != 0 {
-			if userID == 0 {
-				return count, fmt.Errorf("row %d: initial quantity requires an authenticated user", n+2)
-			}
 			if _, movementErr := tx.ExecContext(ctx, `INSERT INTO stock_movements(product_id,type,quantity_change,balance_after,reference_type,reference_id,user_id,notes) VALUES (?,?,?,?,?,?,?,?)`, productID, "adjustment", p.Quantity, p.Quantity, "product", productID, userID, "initial stock"); movementErr != nil {
-				return count, movementErr
+				fail(movementErr)
+				continue
 			}
 		}
-		count++
+		result.Imported++
 	}
 	if err := tx.Commit(); err != nil {
-		return count, err
+		return result, err
 	}
-	return count, nil
+	return result, nil
 }
 
 func normalizeBarcode(p *models.Product) {

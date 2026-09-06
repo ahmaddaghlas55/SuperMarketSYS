@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"mime"
 	"net/http"
 	"strings"
@@ -161,5 +162,42 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) bool {
 func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+	data, err := json.Marshal(value)
+	if err != nil {
+		return
+	}
+	var normalized any
+	if err := json.Unmarshal(data, &normalized); err != nil {
+		return
+	}
+	roundJSONMoney(&normalized, "")
+	_ = json.NewEncoder(w).Encode(normalized)
+}
+
+func roundJSONMoney(value *any, key string) {
+	switch v := (*value).(type) {
+	case map[string]any:
+		for k, child := range v {
+			roundJSONMoney(&child, k)
+			v[k] = child
+		}
+	case []any:
+		for i, child := range v {
+			roundJSONMoney(&child, key)
+			v[i] = child
+		}
+	case float64:
+		if key == "" || isMoneyField(key) {
+			*value = math.Round(v*100) / 100
+		}
+	}
+}
+
+func isMoneyField(key string) bool {
+	for _, term := range []string{"price", "cost", "amount", "total", "discount", "paid", "remaining", "balance", "credit", "outstanding", "value", "profit", "sales", "expense", "difference", "cash", "opening", "closing", "subtotal", "net", "gross", "average", "refund"} {
+		if strings.Contains(strings.ToLower(key), term) {
+			return true
+		}
+	}
+	return false
 }

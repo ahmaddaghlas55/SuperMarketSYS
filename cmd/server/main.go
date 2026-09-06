@@ -107,6 +107,7 @@ func main() {
 	mux.Handle("GET /api/products/{id}/barcode-label", staffOrAdmin(http.HandlerFunc(catalogHandler.BarcodeLabel)))
 	mux.Handle("POST /api/products/import", adminCatalog(http.HandlerFunc(catalogHandler.ImportProducts)))
 	mux.Handle("GET /api/dealers", staffOrAdmin(http.HandlerFunc(purchasingHandler.ListDealers)))
+	mux.Handle("GET /api/dealers/{id}", staffOrAdmin(http.HandlerFunc(purchasingHandler.GetDealer)))
 	mux.Handle("POST /api/dealers", adminCatalog(http.HandlerFunc(purchasingHandler.CreateDealer)))
 	mux.Handle("PUT /api/dealers/{id}", adminCatalog(http.HandlerFunc(purchasingHandler.UpdateDealer)))
 	mux.Handle("DELETE /api/dealers/{id}", adminCatalog(http.HandlerFunc(purchasingHandler.DeleteDealer)))

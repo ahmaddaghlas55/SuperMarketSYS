@@ -40,6 +40,16 @@ type Dealer struct {
 	Balance     float64 `json:"balance"`
 }
 
+type ImportFailure struct {
+	Row   int    `json:"row"`
+	Error string `json:"error"`
+}
+
+type ImportResult struct {
+	Imported int             `json:"imported"`
+	Failed   []ImportFailure `json:"failed"`
+}
+
 type PurchaseItem struct {
 	ID        int64   `json:"id"`
 	ProductID int64   `json:"product_id"`

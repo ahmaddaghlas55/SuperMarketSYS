@@ -27,6 +27,20 @@ func (h *PurchasingHandler) ListDealers(w http.ResponseWriter, r *http.Request) 
 	}
 	writeJSON(w, 200, map[string]any{"dealers": v})
 }
+
+func (h *PurchasingHandler) GetDealer(w http.ResponseWriter, r *http.Request) {
+	id, e := idParam(r)
+	if e != nil {
+		middleware.WriteError(w, 400, "invalid_id")
+		return
+	}
+	v, e := h.service.GetDealer(r.Context(), id)
+	if e != nil {
+		serviceError(w, e)
+		return
+	}
+	writeJSON(w, 200, v)
+}
 func (h *PurchasingHandler) CreateDealer(w http.ResponseWriter, r *http.Request) {
 	var v models.Dealer
 	if !decodeJSON(w, r, &v) {
