@@ -18,10 +18,15 @@ var ErrValidation = errors.New("validation failed")
 type CatalogService struct {
 	repo   *repository.CatalogRepository
 	dbRepo *repository.PurchasingRepository
+	promo  *repository.PromotionRepository
 }
 
-func NewCatalogService(repo *repository.CatalogRepository, dbRepo *repository.PurchasingRepository) *CatalogService {
-	return &CatalogService{repo: repo, dbRepo: dbRepo}
+func NewCatalogService(repo *repository.CatalogRepository, dbRepo *repository.PurchasingRepository, promos ...*repository.PromotionRepository) *CatalogService {
+	var promo *repository.PromotionRepository
+	if len(promos) > 0 {
+		promo = promos[0]
+	}
+	return &CatalogService{repo: repo, dbRepo: dbRepo, promo: promo}
 }
 
 func validateCategory(c models.Category) error {
@@ -103,6 +108,27 @@ func (s *CatalogService) GetProduct(ctx context.Context, id int64) (models.Produ
 }
 func (s *CatalogService) ListProducts(ctx context.Context, low bool) ([]models.Product, error) {
 	return s.repo.ListProducts(ctx, low)
+}
+
+func (s *CatalogService) CalculatePrice(ctx context.Context, id int64, quantity float64) (float64, error) {
+	p, err := s.repo.GetProduct(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+	unit, err := CalculateUnitPrice(p, quantity)
+	if err != nil {
+		return 0, err
+	}
+	if s.promo != nil {
+		promotions, listErr := s.promo.List(ctx, id, true)
+		if listErr != nil {
+			return 0, listErr
+		}
+		if len(promotions) > 0 {
+			unit = PromotionPrice(promotions[0], unit, quantity)
+		}
+	}
+	return unit, nil
 }
 func (s *CatalogService) UpdateProduct(ctx context.Context, id int64, p models.Product) (models.Product, error) {
 	if err := ValidateProduct(p); err != nil {

@@ -140,12 +140,7 @@ func (h *CatalogHandler) CalculatePrice(w http.ResponseWriter, r *http.Request) 
 		middleware.WriteError(w, 400, "invalid_quantity")
 		return
 	}
-	p, err := h.service.GetProduct(r.Context(), id)
-	if err != nil {
-		serviceError(w, err)
-		return
-	}
-	unitPrice, err := services.CalculateUnitPrice(p, qty)
+	unitPrice, err := h.service.CalculatePrice(r.Context(), id, qty)
 	if err != nil {
 		serviceError(w, err)
 		return

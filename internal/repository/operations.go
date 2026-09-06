@@ -24,6 +24,53 @@ type SaleProduct struct {
 	PiecesPerCarton                                                                         int64
 }
 
+func (r *OperationsRepository) ActivePromotionTx(ctx context.Context, tx *sql.Tx, productID int64, now time.Time, stock float64) (models.Promotion, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT id,product_id,promo_type,value,bundle_quantity,starts_at,ends_at,until_stock_zero,active,created_at
+		FROM promotions WHERE product_id=? AND active=1 ORDER BY created_at DESC,id DESC`, productID)
+	if err != nil {
+		return models.Promotion{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p models.Promotion
+		var starts, ends, created sql.NullString
+		var bundle sql.NullInt64
+		var active, until int
+		if err := rows.Scan(&p.ID, &p.ProductID, &p.PromoType, &p.Value, &bundle, &starts, &ends, &until, &active, &created); err != nil {
+			return p, err
+		}
+		if bundle.Valid {
+			p.BundleQuantity = &bundle.Int64
+		}
+		p.StartsAt = parsePromotionTime(starts)
+		p.EndsAt = parsePromotionTime(ends)
+		p.Active, p.UntilStockZero = active == 1, until == 1
+		p.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
+		if p.StartsAt != nil && now.Before(*p.StartsAt) || p.EndsAt != nil && now.After(*p.EndsAt) || p.UntilStockZero && stock <= 0 {
+			continue
+		}
+		return p, nil
+	}
+	if err := rows.Err(); err != nil {
+		return models.Promotion{}, err
+	}
+	return models.Promotion{}, ErrNotFound
+}
+
+func parsePromotionTime(v sql.NullString) *time.Time {
+	if !v.Valid || v.String == "" {
+		return nil
+	}
+	t, err := time.Parse(time.RFC3339, v.String)
+	if err != nil {
+		t, _ = time.Parse("2006-01-02 15:04:05", v.String)
+	}
+	if t.IsZero() {
+		return nil
+	}
+	return &t
+}
+
 func (r *OperationsRepository) SaleProductTx(ctx context.Context, tx *sql.Tx, id int64) (SaleProduct, error) {
 	var p SaleProduct
 	err := tx.QueryRowContext(ctx, `SELECT unit_type,quantity,COALESCE(sale_price,0),COALESCE(price_per_kg,0),COALESCE(price_per_piece,0),COALESCE(price_per_carton,0),COALESCE(purchase_price,0),COALESCE(purchase_price_per_kg,0),COALESCE(pieces_per_carton,0) FROM products WHERE id=? AND active=1`, id).Scan(&p.UnitType, &p.Quantity, &p.SalePrice, &p.PricePerKg, &p.PricePerPiece, &p.PricePerCarton, &p.PurchasePrice, &p.PurchasePricePerKg, &p.PiecesPerCarton)

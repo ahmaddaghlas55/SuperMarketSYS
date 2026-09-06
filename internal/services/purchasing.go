@@ -14,10 +14,15 @@ import (
 type PurchasingService struct {
 	repo    *repository.PurchasingRepository
 	catalog *repository.CatalogRepository
+	audit   *repository.AuditRepository
 }
 
-func NewPurchasingService(repo *repository.PurchasingRepository, catalog *repository.CatalogRepository) *PurchasingService {
-	return &PurchasingService{repo: repo, catalog: catalog}
+func NewPurchasingService(repo *repository.PurchasingRepository, catalog *repository.CatalogRepository, audits ...*repository.AuditRepository) *PurchasingService {
+	var audit *repository.AuditRepository
+	if len(audits) > 0 {
+		audit = audits[0]
+	}
+	return &PurchasingService{repo: repo, catalog: catalog, audit: audit}
 }
 func (s *PurchasingService) ListDealers(ctx context.Context) ([]models.Dealer, error) {
 	return s.repo.ListDealers(ctx)
@@ -100,6 +105,15 @@ func (s *PurchasingService) CreatePurchase(ctx context.Context, userID int64, p 
 	if err != nil {
 		return p, err
 	}
+	if s.audit != nil {
+		record := id
+		if err = s.audit.InsertTx(ctx, tx, models.AuditEntry{
+			UserID: userID, Action: "purchase_created", Module: "purchases", RecordID: &record,
+			Description: fmt.Sprintf("total %.2f", p.Total),
+		}); err != nil {
+			return p, err
+		}
+	}
 	if err = tx.Commit(); err != nil {
 		return p, err
 	}
@@ -143,6 +157,12 @@ func (s *PurchasingService) PayPurchase(ctx context.Context, userID, purchaseID 
 	if method == "cash" {
 		ref := purchaseID
 		if _, err = tx.ExecContext(ctx, `INSERT INTO cash_movements(shift_id,type,direction,amount,reference_type,reference_id) VALUES (?,?,?,?,?,?)`, *shiftID, "dealer_payment", "out", amount, "purchase", ref); err != nil {
+			return p, err
+		}
+	}
+	if s.audit != nil {
+		record := purchaseID
+		if err = s.audit.InsertTx(ctx, tx, models.AuditEntry{UserID: userID, Action: "dealer_payment", Module: "dealer_payments", RecordID: &record, Description: fmt.Sprintf("%.2f", amount)}); err != nil {
 			return p, err
 		}
 	}
@@ -206,6 +226,12 @@ func (s *PurchasingService) ReturnPurchase(ctx context.Context, userID int64, r 
 	}
 	if err = s.repo.InsertDealerCreditTx(ctx, tx, dealerID, id, credit); err != nil {
 		return r, err
+	}
+	if s.audit != nil {
+		record := id
+		if err = s.audit.InsertTx(ctx, tx, models.AuditEntry{UserID: userID, Action: "purchase_return", Module: "purchase_returns", RecordID: &record, Description: r.Reason}); err != nil {
+			return r, err
+		}
 	}
 	if err = tx.Commit(); err != nil {
 		return r, err

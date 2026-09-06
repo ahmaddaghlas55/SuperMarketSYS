@@ -20,6 +20,77 @@ type credentialsRequest struct {
 	Password string `json:"password"`
 }
 
+type userRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Role     string `json:"role"`
+}
+
+func (h *AuthHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := h.auth.ListUsers(r.Context())
+	if err != nil {
+		serviceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"users": users})
+}
+
+func (h *AuthHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
+	var in userRequest
+	if !decodeJSON(w, r, &in) {
+		return
+	}
+	user, err := h.auth.CreateUser(r.Context(), currentUserID(r), in.Username, in.Password, in.Role)
+	if err != nil {
+		serviceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, user)
+}
+
+func (h *AuthHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
+	id, err := idParam(r)
+	if err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid_id")
+		return
+	}
+	var in userRequest
+	if !decodeJSON(w, r, &in) {
+		return
+	}
+	if err = h.auth.UpdateUser(r.Context(), currentUserID(r), id, in.Username, in.Password, in.Role); err != nil {
+		serviceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (h *AuthHandler) DeactivateUser(w http.ResponseWriter, r *http.Request) {
+	id, err := idParam(r)
+	if err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid_id")
+		return
+	}
+	if err = h.auth.SetUserActive(r.Context(), currentUserID(r), id, false); err != nil {
+		serviceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "active": false})
+}
+
+func (h *AuthHandler) ActivateUser(w http.ResponseWriter, r *http.Request) {
+	id, err := idParam(r)
+	if err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid_id")
+		return
+	}
+	if err = h.auth.SetUserActive(r.Context(), currentUserID(r), id, true); err != nil {
+		serviceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "active": true})
+}
+
 func (h *AuthHandler) Bootstrap(w http.ResponseWriter, r *http.Request) {
 	var request credentialsRequest
 	if !decodeJSON(w, r, &request) {

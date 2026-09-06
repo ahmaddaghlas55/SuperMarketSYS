@@ -74,3 +74,56 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (models.User, er
 	}
 	return user, nil
 }
+
+func (r *UserRepository) List(ctx context.Context) ([]models.User, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT id,username,role,active,created_at FROM users ORDER BY username`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []models.User
+	for rows.Next() {
+		var u models.User
+		var active int
+		var created string
+		if err := rows.Scan(&u.ID, &u.Username, &u.Role, &active, &created); err != nil {
+			return nil, err
+		}
+		u.Active = active == 1
+		u.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+func (r *UserRepository) Update(ctx context.Context, id int64, username, role string, passwordHash *string) error {
+	var (
+		res sql.Result
+		err error
+	)
+	if passwordHash != nil {
+		res, err = r.db.ExecContext(ctx, `UPDATE users SET username=?,role=?,password_hash=? WHERE id=? AND active=1`, username, role, *passwordHash, id)
+	} else {
+		res, err = r.db.ExecContext(ctx, `UPDATE users SET username=?,role=? WHERE id=? AND active=1`, username, role, id)
+	}
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *UserRepository) SetActive(ctx context.Context, id int64, active bool) error {
+	res, err := r.db.ExecContext(ctx, `UPDATE users SET active=? WHERE id=?`, boolToInt(active), id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

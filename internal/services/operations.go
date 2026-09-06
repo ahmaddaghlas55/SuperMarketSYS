@@ -13,11 +13,16 @@ import (
 )
 
 type OperationsService struct {
-	repo *repository.OperationsRepository
+	repo  *repository.OperationsRepository
+	audit *repository.AuditRepository
 }
 
-func NewOperationsService(r *repository.OperationsRepository) *OperationsService {
-	return &OperationsService{repo: r}
+func NewOperationsService(r *repository.OperationsRepository, audits ...*repository.AuditRepository) *OperationsService {
+	var audit *repository.AuditRepository
+	if len(audits) > 0 {
+		audit = audits[0]
+	}
+	return &OperationsService{repo: r, audit: audit}
 }
 func (s *OperationsService) GetSale(ctx context.Context, id int64) (models.Sale, error) {
 	return s.repo.LoadSale(ctx, id)
@@ -78,12 +83,18 @@ func (s *OperationsService) CreateSale(ctx context.Context, userID int64, in Sal
 				unit = p.PricePerCarton / float64(p.PiecesPerCarton)
 			}
 		}
+		if promo, promoErr := s.repo.ActivePromotionTx(ctx, tx, in.Items[i].ProductID, time.Now().UTC(), p.Quantity); promoErr == nil {
+			unit = PromotionPrice(promo, unit, in.Items[i].Quantity)
+		}
+		manualOverride := in.Items[i].PriceOverride != nil || in.Items[i].LineTotal > 0
+		if manualOverride {
+			in.Items[i].IsOverride = true
+		}
 		if in.Items[i].PriceOverride != nil {
 			if *in.Items[i].PriceOverride < 0 {
 				return models.Sale{}, fmt.Errorf("%w: negative price override", ErrValidation)
 			}
 			unit = *in.Items[i].PriceOverride
-			in.Items[i].IsOverride = true
 		}
 		if unit < 0 || cost < 0 {
 			return models.Sale{}, fmt.Errorf("%w: product pricing", ErrValidation)
@@ -91,7 +102,7 @@ func (s *OperationsService) CreateSale(ctx context.Context, userID int64, in Sal
 		in.Items[i].UnitPrice = money(unit)
 		in.Items[i].CostPrice = money(cost)
 		computedLineTotal := money(unit * in.Items[i].Quantity)
-		if in.Items[i].IsOverride && in.Items[i].LineTotal != 0 {
+		if manualOverride && in.Items[i].LineTotal != 0 {
 			if in.Items[i].LineTotal < 0 || (computedLineTotal > 0 && in.Items[i].LineTotal > computedLineTotal*10+0.000001) {
 				return models.Sale{}, fmt.Errorf("%w: unreasonable line override", ErrValidation)
 			}
@@ -199,6 +210,15 @@ func (s *OperationsService) CreateSale(ctx context.Context, userID int64, in Sal
 			}
 		}
 	}
+	if s.audit != nil {
+		record := id
+		if err := s.audit.InsertTx(ctx, tx, models.AuditEntry{
+			UserID: userID, Action: "sale_created", Module: "sales", RecordID: &record,
+			Description: fmt.Sprintf("invoice %s total %.2f", sale.InvoiceNumber, sale.Total),
+		}); err != nil {
+			return models.Sale{}, err
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return models.Sale{}, err
 	}
@@ -280,6 +300,12 @@ func (s *OperationsService) PayDebt(ctx context.Context, userID, customerID int6
 	}
 	if method == "cash" && applied > 0 {
 		if err := s.repo.AddCashMovementTx(ctx, tx, models.CashMovement{ShiftID: *shift, Type: "customer_payment", Direction: "in", Amount: applied, ReferenceType: "customer", ReferenceID: &customerID}); err != nil {
+			return 0, err
+		}
+	}
+	if s.audit != nil {
+		record := customerID
+		if err := s.audit.InsertTx(ctx, tx, models.AuditEntry{UserID: userID, Action: "customer_payment", Module: "customer_payments", RecordID: &record, Description: fmt.Sprintf("%.2f", applied)}); err != nil {
 			return 0, err
 		}
 	}
@@ -391,6 +417,12 @@ func (s *OperationsService) CreateSalesReturn(ctx context.Context, userID int64,
 	if err != nil {
 		return v, err
 	}
+	if s.audit != nil {
+		record := id
+		if err := s.audit.InsertTx(ctx, tx, models.AuditEntry{UserID: userID, Action: "sales_return", Module: "sales_returns", RecordID: &record, Description: in.RefundType}); err != nil {
+			return v, err
+		}
+	}
 	v.ID = id
 	for _, item := range in.Items {
 		if err := s.repo.InsertSalesReturnItemTx(ctx, tx, id, item); err != nil {
@@ -456,9 +488,25 @@ func (s *OperationsService) createExchangeSaleTx(ctx context.Context, tx *sql.Tx
 				unit = p.PricePerCarton / float64(p.PiecesPerCarton)
 			}
 		}
+		if promo, promoErr := s.repo.ActivePromotionTx(ctx, tx, items[i].ProductID, time.Now().UTC(), p.Quantity); promoErr == nil {
+			unit = PromotionPrice(promo, unit, items[i].Quantity)
+		}
+		manualOverride := items[i].PriceOverride != nil || items[i].LineTotal > 0
+		if items[i].PriceOverride != nil {
+			if *items[i].PriceOverride < 0 {
+				return 0, 0, fmt.Errorf("%w: negative price override", ErrValidation)
+			}
+			unit = *items[i].PriceOverride
+		}
 		items[i].UnitPrice = unit
 		items[i].CostPrice = cost
-		items[i].LineTotal = money(unit * items[i].Quantity)
+		if manualOverride && items[i].LineTotal > 0 {
+			items[i].LineTotal = money(items[i].LineTotal)
+			unit = items[i].LineTotal / items[i].Quantity
+			items[i].UnitPrice = money(unit)
+		} else {
+			items[i].LineTotal = money(unit * items[i].Quantity)
+		}
 		total += items[i].LineTotal
 	}
 	recv := money(total)
@@ -494,6 +542,12 @@ func (s *OperationsService) OpenShift(ctx context.Context, userID int64, balance
 	if e != nil {
 		return models.CashShift{}, e
 	}
+	if s.audit != nil {
+		record := id
+		if e = s.audit.InsertTx(ctx, tx, models.AuditEntry{UserID: userID, Action: "shift_opened", Module: "cash_shifts", RecordID: &record}); e != nil {
+			return models.CashShift{}, e
+		}
+	}
 	if e = tx.Commit(); e != nil {
 		return models.CashShift{}, e
 	}
@@ -517,6 +571,12 @@ func (s *OperationsService) CloseShift(ctx context.Context, userID, id int64, ac
 	}
 	if _, e = s.repo.CloseShiftTx(ctx, tx, id, actual, notes); e != nil {
 		return models.CashShift{}, e
+	}
+	if s.audit != nil {
+		record := id
+		if e = s.audit.InsertTx(ctx, tx, models.AuditEntry{UserID: userID, Action: "shift_closed", Module: "cash_shifts", RecordID: &record}); e != nil {
+			return models.CashShift{}, e
+		}
 	}
 	if e = tx.Commit(); e != nil {
 		return models.CashShift{}, e
@@ -566,6 +626,12 @@ func (s *OperationsService) CreateManualCashMovement(ctx context.Context, userID
 	id, err := s.repo.InsertManualCashMovementTx(ctx, tx, m)
 	if err != nil {
 		return models.CashMovement{}, err
+	}
+	if s.audit != nil {
+		record := id
+		if err = s.audit.InsertTx(ctx, tx, models.AuditEntry{UserID: userID, Action: "manual_cash_movement", Module: "cash_movements", RecordID: &record, Description: in.Direction}); err != nil {
+			return models.CashMovement{}, err
+		}
 	}
 	if err = tx.Commit(); err != nil {
 		return models.CashMovement{}, err
@@ -627,6 +693,12 @@ func (s *OperationsService) CreateExpense(ctx context.Context, userID int64, e m
 			return e, err
 		}
 	}
+	if s.audit != nil {
+		record := id
+		if err = s.audit.InsertTx(ctx, tx, models.AuditEntry{UserID: userID, Action: "expense_created", Module: "expenses", RecordID: &record}); err != nil {
+			return e, err
+		}
+	}
 	if err = tx.Commit(); err != nil {
 		return e, err
 	}
@@ -659,6 +731,12 @@ func (s *OperationsService) CreateOwnerExpense(ctx context.Context, userID int64
 	}
 	if _, err = s.repo.ChangeStockTx(ctx, tx, e.ProductID, -e.Quantity, "owner_expense", id, userID, e.Notes); err != nil {
 		return e, err
+	}
+	if s.audit != nil {
+		record := id
+		if err = s.audit.InsertTx(ctx, tx, models.AuditEntry{UserID: userID, Action: "inventory_owner_expense", Module: "inventory_owner_expenses", RecordID: &record}); err != nil {
+			return e, err
+		}
 	}
 	if err = tx.Commit(); err != nil {
 		return e, err
