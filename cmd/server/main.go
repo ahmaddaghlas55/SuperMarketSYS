@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"supermarket/internal/migrations"
 	"supermarket/internal/repository"
 	"supermarket/internal/services"
+	"supermarket/internal/web"
 )
 
 func main() {
@@ -65,6 +67,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthHandler)
+	registerFrontendRoutes(mux)
 	mux.HandleFunc("POST /api/auth/bootstrap", authHandler.Bootstrap)
 	mux.HandleFunc("POST /api/auth/login", authHandler.Login)
 	protected := middleware.RequireAuth(authService, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -87,11 +90,6 @@ func main() {
 	staffOrAdmin := func(h http.Handler) http.Handler {
 		return middleware.RequireAuth(authService, middleware.RequireRole("admin", "staff")(h))
 	}
-	mux.Handle("GET /api/users", adminCatalog(http.HandlerFunc(authHandler.ListUsers)))
-	mux.Handle("POST /api/users", adminCatalog(http.HandlerFunc(authHandler.CreateUser)))
-	mux.Handle("PUT /api/users/{id}", adminCatalog(http.HandlerFunc(authHandler.UpdateUser)))
-	mux.Handle("DELETE /api/users/{id}", adminCatalog(http.HandlerFunc(authHandler.DeactivateUser)))
-	mux.Handle("POST /api/users/{id}/activate", adminCatalog(http.HandlerFunc(authHandler.ActivateUser)))
 	mux.Handle("GET /api/categories", staffOrAdmin(http.HandlerFunc(catalogHandler.ListCategories)))
 	mux.Handle("POST /api/categories", adminCatalog(http.HandlerFunc(catalogHandler.CreateCategory)))
 	mux.Handle("PUT /api/categories/{id}", adminCatalog(http.HandlerFunc(catalogHandler.UpdateCategory)))
@@ -237,4 +235,68 @@ func envOr(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func registerFrontendRoutes(mux *http.ServeMux) {
+	frontend, err := fs.Sub(web.FrontendFS, "frontend")
+	if err != nil {
+		log.Fatalf("load embedded frontend: %v", err)
+	}
+	css, err := fs.Sub(frontend, "css")
+	if err != nil {
+		log.Fatalf("load embedded frontend css: %v", err)
+	}
+	js, err := fs.Sub(frontend, "js")
+	if err != nil {
+		log.Fatalf("load embedded frontend js: %v", err)
+	}
+	public, err := fs.Sub(frontend, "public")
+	if err != nil {
+		log.Fatalf("load embedded frontend public assets: %v", err)
+	}
+
+	mux.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.FS(css))))
+	mux.Handle("/js/", http.StripPrefix("/js/", http.FileServer(http.FS(js))))
+	mux.Handle("/public/", http.StripPrefix("/public/", http.FileServer(http.FS(public))))
+
+	pages := map[string]string{
+		"/first-run":              "pages/auth/first-run.html",
+		"/login":                  "pages/auth/login.html",
+		"/staff/home":             "pages/staff/home.html",
+		"/staff/checkout":         "pages/staff/checkout.html",
+		"/staff/debt":             "pages/staff/debt-list.html",
+		"/staff/debt-detail":      "pages/staff/debt-detail.html",
+		"/staff/cash-register":    "pages/staff/cash-register.html",
+		"/staff/dealer-receipt":   "pages/staff/dealer-receipt.html",
+		"/staff/barcode-viewer":   "pages/staff/barcode-viewer.html",
+		"/admin/dashboard":        "pages/admin/dashboard.html",
+		"/admin/products":         "pages/admin/products.html",
+		"/admin/categories":       "pages/admin/categories.html",
+		"/admin/promotions":       "pages/admin/promotions.html",
+		"/admin/dealers":          "pages/admin/dealers.html",
+		"/admin/dealer-ledger":    "pages/admin/dealer-ledger.html",
+		"/admin/purchase-returns": "pages/admin/purchase-returns.html",
+		"/admin/sales-returns":    "pages/admin/sales-returns.html",
+		"/admin/all-returns":      "pages/admin/all-returns.html",
+		"/admin/expenses":         "pages/admin/expenses.html",
+		"/admin/owner-take":       "pages/admin/owner-take.html",
+		"/admin/reports":          "pages/admin/reports.html",
+		"/admin/exports":          "pages/admin/exports.html",
+		"/admin/audit-log":        "pages/admin/audit-log.html",
+	}
+	for route, file := range pages {
+		mux.HandleFunc("GET "+route, frontendPageHandler(file))
+	}
+}
+
+func frontendPageHandler(file string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		page, err := web.FrontendFS.ReadFile("frontend/" + file)
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(page)
+	}
 }

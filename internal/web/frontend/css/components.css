@@ -1,0 +1,120 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-min);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  font-size: var(--font-size-base);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+.btn:active { transform: scale(0.97); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+.btn-ghost:hover { background: var(--bg-surface-muted); }
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-inverse);
+}
+.btn-primary:hover { background: var(--accent-hover); }
+
+.surface {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Circle-based selection grid — used by Login and Staff Home */
+.circle-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-7);
+  margin-top: var(--space-6);
+}
+
+.circle-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.circle {
+  width: var(--touch-large);
+  height: var(--touch-large);
+  min-width: 140px;
+  min-height: 140px;
+  border-radius: var(--radius-circle);
+  background: var(--bg-surface);
+  border: 2px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-2xl);
+  font-weight: 600;
+  color: var(--text-primary);
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+
+.circle-tile:hover .circle,
+.circle-tile:active .circle {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.circle-tile .tile-label {
+  font-size: var(--font-size-lg);
+  font-weight: 500;
+}
+
+.circle-tile .tile-badge {
+  font-size: var(--font-size-sm);
+  color: var(--status-warning);
+  background: var(--accent-soft);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+/* Password step */
+.password-screen {
+  max-width: 360px;
+  margin: var(--space-8) auto 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  text-align: center;
+}
+
+.password-screen input {
+  width: 100%;
+  min-height: var(--touch-min);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  text-align: center;
+  font-size: var(--font-size-lg);
+  letter-spacing: 4px;
+}
+
+.error-text {
+  color: var(--status-danger);
+  font-size: var(--font-size-sm);
+  min-height: 1.2em;
+}

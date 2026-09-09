@@ -1,0 +1,4 @@
+import { api } from '../core/api.js';
+import { auth } from '../core/auth.js';
+async function init() { if (!auth.requireAuth('admin')) return; const app = document.querySelector('#app'); const products = await api.get('/api/products'); app.querySelector('[name=product_id]').innerHTML = (products.products || []).map(product => `<option value="${product.id}">${product.name}</option>`).join(''); app.querySelector('#form').onsubmit = async event => { event.preventDefault(); const data = new FormData(event.target); await api.post('/api/inventory-owner-expenses', { product_id: Number(data.get('product_id')), quantity: Number(data.get('quantity')), notes: data.get('notes') || undefined }); app.querySelector('#message').textContent = 'تم التسجيل.'; }; }
+document.addEventListener('DOMContentLoaded', init);

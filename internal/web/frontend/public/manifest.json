@@ -1,0 +1,19 @@
+{
+  "name": "SuperMarketSYS",
+  "short_name": "SuperMarketSYS",
+  "dir": "rtl",
+  "lang": "ar",
+  "display": "standalone",
+  "icons": [
+    {
+      "src": "/public/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/public/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

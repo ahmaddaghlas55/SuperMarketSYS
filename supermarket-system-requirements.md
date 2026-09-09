@@ -179,3 +179,8 @@ A full functional report of an existing (unrelated) supermarket system was obtai
 ## 8. Process Note
 
 Reverse-engineering the existing reference system is planned **only after** this independent design (and eventual implementation) is solid, and only as a narrow gap-check: "did I miss a feature or edge case they handle?" — not as an architecture or code reference. No code or structure from that system is to be copied.
+
+# SS- to run the system : 
+```
+DATABASE_PATH=/mnt/c/dev/SuperMarketSYS/supermarket.db go run ./cmd/server
+```
