@@ -1,2 +1,43 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"><title>المصروفات</title><link rel="manifest" href="/public/manifest.json"><link rel="stylesheet" href="/css/tokens.css"><link rel="stylesheet" href="/css/base.css"><link rel="stylesheet" href="/css/components.css"></head><body><main id="app"><div class="app-shell"><header class="page-header"><h1>المصروفات</h1><a class="btn btn-ghost" href="/admin/dashboard">لوحة التحكم</a></header><section class="surface panel stack"><form id="form" class="stack"><label class="label">التصنيف<select class="select" name="expense_category_id"></select></label><label class="label">المبلغ<input class="input" name="amount" type="number" min="0.01" step="0.01" required></label><label class="label">طريقة الدفع<select class="select" name="payment_method"><option value="cash">نقداً</option><option value="card">بطاقة</option><option value="bank">بنك</option></select></label><label class="label">التاريخ<input class="input" name="expense_date" type="date"></label><label class="label">ملاحظات<textarea class="input" name="notes"></textarea></label><button class="btn btn-primary">حفظ المصروف</button><div id="message"></div></form><hr><form id="category" class="cluster"><input class="input" name="name" placeholder="تصنيف جديد" required><button class="btn">إضافة تصنيف</button></form></section></div></main><script type="module" src="/js/core/auth.js"></script><script type="module" src="/js/pages/expenses.js"></script></body></html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <title>المصروفات</title>
+    <link rel="manifest" href="/public/manifest.json">
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/components.css">
+</head>
+
+<body>
+    <main id="app">
+        <div class="app-shell">
+            <header class="page-header">
+                <h1>المصروفات</h1><a class="btn btn-ghost" href="/admin/dashboard">لوحة التحكم</a>
+            </header>
+            <section class="surface panel stack">
+                <form id="form" class="stack"><label class="label">التصنيف<select class="select"
+                            name="expense_category_id"></select></label><label class="label">المبلغ<input class="input"
+                            name="amount" type="number" min="0.01" step="0.01" required></label><label
+                        class="label">طريقة الدفع<select class="select" name="payment_method">
+                            <option value="cash">نقداً</option>
+                            <option value="card">بطاقة</option>
+                            <option value="bank">بنك</option>
+                        </select></label><label class="label">التاريخ<input class="input" name="expense_date"
+                            type="date"></label><label class="label">ملاحظات<textarea class="input"
+                            name="notes"></textarea></label><button class="btn btn-primary">حفظ المصروف</button>
+                    <div id="message"></div>
+                </form>
+                <hr>
+                <form id="category" class="cluster"><input class="input" name="name" placeholder="تصنيف جديد"
+                        required><button class="btn">إضافة تصنيف</button></form>
+            </section>
+        </div>
+    </main>
+    <script type="module" src="/js/core/auth.js"></script>
+    <script type="module" src="/js/pages/expenses.js"></script>
+</body>
+
+</html>

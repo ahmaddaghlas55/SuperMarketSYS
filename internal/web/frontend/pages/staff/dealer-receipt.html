@@ -1,3 +1,39 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap"><title>إيصال مورد</title><link rel="manifest" href="/public/manifest.json"><link rel="stylesheet" href="/css/tokens.css"><link rel="stylesheet" href="/css/base.css"><link rel="stylesheet" href="/css/components.css"></head>
-<body><main id="app"><div class="app-shell"><header class="page-header"><h1>إيصال مورد جديد</h1><a class="btn btn-ghost" href="/staff/home">الرئيسية</a></header><section class="surface panel"><form id="form" class="stack"><label class="label">المورد<select class="select" name="dealer_id" required></select></label><label class="label">رقم الفاتورة<input class="input" name="dealer_invoice_number"></label><div id="items" class="stack"></div><button type="button" class="btn" id="add">إضافة صنف</button><label class="label">الخصم<input class="input" name="discount" type="number" min="0" step="0.01" value="0"></label><button class="btn btn-primary">حفظ الإيصال</button><div id="message"></div></form></section></div></main><script type="module" src="/js/core/auth.js"></script><script type="module" src="/js/pages/dealer-receipt.js"></script></body></html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+    <title>إيصال مورد</title>
+    <link rel="manifest" href="/public/manifest.json">
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/components.css">
+</head>
+
+<body>
+    <main id="app">
+        <div class="app-shell">
+            <header class="page-header">
+                <h1>إيصال مورد جديد</h1><a class="btn btn-ghost" href="/staff/home">الرئيسية</a>
+            </header>
+            <section class="surface panel">
+                <form id="form" class="stack"><label class="label">المورد<select class="select" name="dealer_id"
+                            required></select></label><label class="label">رقم الفاتورة<input class="input"
+                            name="dealer_invoice_number"></label>
+                    <div id="items" class="stack"></div><button type="button" class="btn" id="add">إضافة
+                        صنف</button><label class="label">الخصم<input class="input" name="discount" type="number" min="0"
+                            step="0.01" value="0"></label><button class="btn btn-primary">حفظ الإيصال</button>
+                    <div id="message"></div>
+                </form>
+            </section>
+        </div>
+    </main>
+    <script type="module" src="/js/core/auth.js"></script>
+    <script type="module" src="/js/pages/dealer-receipt.js"></script>
+</body>
+
+</html>

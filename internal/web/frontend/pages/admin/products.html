@@ -1,2 +1,41 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"><title>المنتجات والتصنيفات</title><link rel="manifest" href="/public/manifest.json"><link rel="stylesheet" href="/css/tokens.css"><link rel="stylesheet" href="/css/base.css"><link rel="stylesheet" href="/css/components.css"></head><body><main id="app"><div class="app-shell"><header class="page-header"><h1>المنتجات والتصنيفات</h1><a class="btn btn-ghost" href="/admin/dashboard">لوحة التحكم</a></header><section class="master-detail"><aside class="surface panel stack"><button class="btn btn-primary" id="new">منتج جديد</button><input class="input" id="search" placeholder="بحث"><div id="list" class="list"></div><hr><form id="category" class="stack"><h3>إضافة تصنيف</h3><input class="input" name="name" placeholder="اسم التصنيف" required><input class="input" name="low_stock_threshold" type="number" min="0" value="5"><button class="btn">حفظ التصنيف</button></form></aside><main id="detail" class="surface panel"><p class="empty">اختر منتجاً أو أنشئ منتجاً</p></main></section></div></main><script type="module" src="/js/core/auth.js"></script><script type="module" src="/js/pages/products.js"></script></body></html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <title>المنتجات والتصنيفات</title>
+    <link rel="manifest" href="/public/manifest.json">
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/components.css">
+</head>
+
+<body>
+    <main id="app">
+        <div class="app-shell">
+            <header class="page-header">
+                <h1>المنتجات والتصنيفات</h1><a class="btn btn-ghost" href="/admin/dashboard">لوحة التحكم</a>
+            </header>
+            <section class="master-detail">
+                <aside class="surface panel stack"><button class="btn btn-primary" id="new">منتج جديد</button><input
+                        class="input" id="search" placeholder="بحث">
+                    <div id="list" class="list"></div>
+                    <hr>
+                    <form id="category" class="stack">
+                        <h3>إضافة تصنيف</h3><input class="input" name="name" placeholder="اسم التصنيف" required><input
+                            class="input" name="low_stock_threshold" type="number" min="0" value="5"><button
+                            class="btn">حفظ التصنيف</button>
+                    </form>
+                </aside>
+                <main id="detail" class="surface panel">
+                    <p class="empty">اختر منتجاً أو أنشئ منتجاً</p>
+                </main>
+            </section>
+        </div>
+    </main>
+    <script type="module" src="/js/core/auth.js"></script>
+    <script type="module" src="/js/pages/products.js"></script>
+</body>
+
+</html>

@@ -1,2 +1,41 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"><title>مرتجعات الشراء</title><link rel="manifest" href="/public/manifest.json"><link rel="stylesheet" href="/css/tokens.css"><link rel="stylesheet" href="/css/base.css"><link rel="stylesheet" href="/css/components.css"></head><body><main id="app"><div class="app-shell"><header class="page-header"><h1>مرتجعات الشراء</h1><a class="btn btn-ghost" href="/admin/dealer-ledger">الموردون</a></header><section class="surface panel"><form id="form" class="stack"><label class="label">رقم الشراء<input class="input" name="purchase_id" type="number" min="1" required></label><label class="label">السبب<select class="select" name="reason"><option value="expired">منتهي</option><option value="damaged">تالف</option><option value="unsold">غير مباع</option></select></label><label class="label">المنتج<select class="select" name="product_id"></select></label><label class="label">الكمية<input class="input" name="quantity" type="number" min="0.01" step="0.01" required></label><label class="label">ملاحظات<textarea class="input" name="notes"></textarea></label><button class="btn btn-primary">تسجيل المرتجع</button><div id="message"></div></form></section></div></main><script type="module" src="/js/core/auth.js"></script><script type="module" src="/js/pages/purchase-returns.js"></script></body></html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <title>مرتجعات الشراء</title>
+    <link rel="manifest" href="/public/manifest.json">
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/components.css">
+</head>
+
+<body>
+    <main id="app">
+        <div class="app-shell">
+            <header class="page-header">
+                <h1>مرتجعات الشراء</h1><a class="btn btn-ghost" href="/admin/dealer-ledger">الموردون</a>
+            </header>
+            <section class="surface panel">
+                <form id="form" class="stack"><label class="label">رقم الشراء<input class="input" name="purchase_id"
+                            type="number" min="1" required></label><label class="label">السبب<select class="select"
+                            name="reason">
+                            <option value="expired">منتهي</option>
+                            <option value="damaged">تالف</option>
+                            <option value="unsold">غير مباع</option>
+                        </select></label><label class="label">المنتج<select class="select"
+                            name="product_id"></select></label><label class="label">الكمية<input class="input"
+                            name="quantity" type="number" min="0.01" step="0.01" required></label><label
+                        class="label">ملاحظات<textarea class="input" name="notes"></textarea></label><button
+                        class="btn btn-primary">تسجيل المرتجع</button>
+                    <div id="message"></div>
+                </form>
+            </section>
+        </div>
+    </main>
+    <script type="module" src="/js/core/auth.js"></script>
+    <script type="module" src="/js/pages/purchase-returns.js"></script>
+</body>
+
+</html>
