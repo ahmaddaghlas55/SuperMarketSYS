@@ -28,13 +28,26 @@
       </section>
 
       <section id="password-screen" class="password-screen hidden">
-        <button class="btn btn-ghost" id="back-btn">رجوع</button>
-        <div class="circle" id="password-avatar"></div>
-        <h2 id="password-name"></h2>
-        <input type="password" id="password-input" placeholder="كلمة المرور" autocomplete="off">
-        <p class="error-text" id="password-error"></p>
-        <button class="btn btn-primary" id="submit-btn">دخول</button>
-      </section>
+  <button class="btn btn-ghost" id="back-btn">رجوع</button>
+  <div class="circle" id="password-avatar"></div>
+  <h2 id="password-name"></h2>
+  <div class="pin-dots" id="pin-dots"></div>
+  <p class="error-text" id="password-error"></p>
+  <div class="pin-pad" id="pin-pad">
+    <button class="pin-key" data-key="1">1</button>
+    <button class="pin-key" data-key="2">2</button>
+    <button class="pin-key" data-key="3">3</button>
+    <button class="pin-key" data-key="4">4</button>
+    <button class="pin-key" data-key="5">5</button>
+    <button class="pin-key" data-key="6">6</button>
+    <button class="pin-key" data-key="7">7</button>
+    <button class="pin-key" data-key="8">8</button>
+    <button class="pin-key" data-key="9">9</button>
+    <button class="pin-key pin-key-action" data-key="back">⌫</button>
+    <button class="pin-key" data-key="0">0</button>
+    <button class="pin-key pin-key-action pin-key-submit" data-key="submit">✓</button>
+  </div>
+</section>
     </div>
   </main>
   <script type="module" src="/js/pages/login.js"></script>

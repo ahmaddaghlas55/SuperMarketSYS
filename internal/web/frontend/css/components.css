@@ -94,24 +94,68 @@
 /* Password step */
 .password-screen {
   max-width: 360px;
-  margin: var(--space-8) auto 0;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-3);
   text-align: center;
 }
 
-.password-screen input {
-  width: 100%;
-  min-height: var(--touch-min);
-  padding: 0 var(--space-4);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-strong);
-  text-align: center;
-  font-size: var(--font-size-lg);
-  letter-spacing: 4px;
+/* ↓ insert here ↓ */
+
+.pin-dots {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 24px;
+  margin: var(--space-2) 0;
 }
+.pin-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-circle);
+  border: 2px solid var(--border-strong);
+  background: transparent;
+}
+.pin-dot.filled {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.pin-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 64px);
+  gap: var(--space-2);
+  justify-content: center;
+}
+.pin-key {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  font-size: var(--font-size-lg);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.pin-key:active {
+  background: var(--bg-surface-muted);
+  transform: scale(0.96);
+}
+.pin-key-action {
+  background: var(--bg-surface-muted);
+  color: var(--text-secondary);
+}
+.pin-key-submit {
+  background: var(--accent);
+  color: var(--text-inverse);
+  border-color: var(--accent);
+}
+.pin-key-submit:active {
+  background: var(--accent-hover);
+}
+
+/* ↑ end insert ↑ */
 
 .error-text {
   color: var(--status-danger);
