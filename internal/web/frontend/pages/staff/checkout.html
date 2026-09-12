@@ -24,22 +24,22 @@
                 </div><a class="btn btn-ghost" href="/staff/home">الرئيسية</a>
             </header>
             <section class="master-detail">
-                <aside class="surface panel stack"><input id="search" class="input" placeholder="اسم المنتج أو الباركود"
-                        autofocus>
+                <aside class="surface panel stack">
+                    <div id="quick-sell"></div>
+                    <input id="search" class="input" placeholder="اسم المنتج أو الباركود">
                     <div id="matches" class="list"></div>
                     <div id="detail" class="stack"></div>
                 </aside>
-                <main class="surface panel stack">
+                <section class="surface panel stack">
                     <div class="page-header">
                         <h2>السلة</h2><button class="btn btn-danger" id="clear">تفريغ</button>
                     </div>
                     <div id="cart" class="list"></div>
                     <div id="summary"></div>
-                </main>
+                </section>
             </section>
         </div>
     </main>
-    <script type="module" src="/js/core/auth.js"></script>
     <script type="module" src="/js/pages/checkout.js"></script>
 </body>
 

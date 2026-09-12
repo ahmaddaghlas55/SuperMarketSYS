@@ -8,37 +8,61 @@ const USERS = [
 ];
 
 let selected = null;
+let pin = '';
 
 function initial(name) { return name.trim().charAt(0); }
 
 function showUserSelect() {
   document.querySelector('#password-screen').classList.add('hidden');
   document.querySelector('#user-select').classList.remove('hidden');
-  document.querySelector('#password-input').value = '';
+  pin = '';
   document.querySelector('#password-error').textContent = '';
+}
+
+function renderPinDots() {
+  const dots = document.querySelector('#pin-dots');
+  dots.innerHTML = '';
+  for (let i = 0; i < pin.length; i++) {
+    const dot = document.createElement('span');
+    dot.className = 'pin-dot filled';
+    dots.appendChild(dot);
+  }
 }
 
 function showPasswordScreen(user) {
   selected = user;
+  pin = '';
   document.querySelector('#user-select').classList.add('hidden');
   document.querySelector('#password-screen').classList.remove('hidden');
   document.querySelector('#password-avatar').textContent = initial(user.displayName);
   document.querySelector('#password-name').textContent = user.displayName;
-  const input = document.querySelector('#password-input');
-  input.value = '';
-  input.focus();
+  document.querySelector('#password-error').textContent = '';
+  renderPinDots();
 }
 
 async function submitPassword() {
-  const password = document.querySelector('#password-input').value;
   const errorEl = document.querySelector('#password-error');
   errorEl.textContent = '';
   try {
-    const user = await auth.login(selected.username, password);
+    const user = await auth.login(selected.username, pin);
     window.location.href = user.role === 'admin' ? '/admin/dashboard' : '/staff/home';
   } catch (err) {
     errorEl.textContent = 'كلمة المرور غير صحيحة';
+    pin = '';
+    renderPinDots();
   }
+}
+
+function handlePinKey(key) {
+  if (key === 'back') {
+    pin = pin.slice(0, -1);
+  } else if (key === 'submit') {
+    submitPassword();
+    return;
+  } else {
+    pin += key;
+  }
+  renderPinDots();
 }
 
 function init() {
@@ -52,9 +76,9 @@ function init() {
   });
 
   document.querySelector('#back-btn').onclick = showUserSelect;
-  document.querySelector('#submit-btn').onclick = submitPassword;
-  document.querySelector('#password-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') submitPassword();
+  document.querySelector('#pin-pad').addEventListener('click', e => {
+    const btn = e.target.closest('.pin-key');
+    if (btn) handlePinKey(btn.dataset.key);
   });
 }
 
